@@ -66,7 +66,7 @@ export default function AnalysisPage() {
                   students: { label: "Students", color: "hsl(var(--chart-1))" },
                   certifications: { label: "Certifications", color: "hsl(var(--chart-2))" },
                 }}
-                className="h-[350px]"
+                className="h-87.5"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={enrollmentData}>
@@ -104,7 +104,7 @@ export default function AnalysisPage() {
                 config={{
                   count: { label: "Certified Users", color: "hsl(var(--chart-3))" },
                 }}
-                className="h-[350px]"
+                className="h-87.5"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={skillPopularity} layout="vertical" margin={{ left: 20 }}>

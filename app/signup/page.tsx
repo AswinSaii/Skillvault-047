@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useAuth, type UserRole } from "@/lib/auth-context"
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { GraduationCap, Loader2, ShieldCheck, AlertCircle } from "lucide-react"
+import { GraduationCap, Loader2, ShieldCheck, AlertCircle, CheckCircle2 } from "lucide-react"
+import { getVerifiedColleges, isCollegeVerified, type College } from "@/lib/firebase/colleges"
 
 export default function SignupPage() {
   const searchParams = useSearchParams()
@@ -21,12 +22,27 @@ export default function SignupPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [college, setCollege] = useState("")
+  const [collegeId, setCollegeId] = useState("")
   const [role, setRole] = useState<UserRole>(defaultRole)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [verifiedColleges, setVerifiedColleges] = useState<College[]>([])
+  const [loadingColleges, setLoadingColleges] = useState(false)
   const { signup } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    loadVerifiedColleges()
+  }, [])
+
+  const loadVerifiedColleges = async () => {
+    setLoadingColleges(true)
+    const result = await getVerifiedColleges()
+    if (result.success) {
+      setVerifiedColleges(result.colleges)
+    }
+    setLoadingColleges(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -34,7 +50,21 @@ export default function SignupPage() {
     setError(null)
 
     try {
-      const result = await signup(email, password, name, role, college || undefined)
+      // Validate college verification for roles that require it
+      if ((role === "student" || role === "faculty" || role === "college-admin") && collegeId) {
+        const verificationResult = await isCollegeVerified(collegeId)
+        if (!verificationResult.isVerified) {
+          setError("Selected college is not verified. Please contact your institution or register your college.")
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Find selected college name
+      const selectedCollege = verifiedColleges.find(c => c.id === collegeId)
+      const collegeName = selectedCollege?.name || ""
+
+      const result = await signup(email, password, name, role, collegeName, collegeId)
       if (!result.success) {
         setError(result.error || "Signup failed. Please try again.")
       }
@@ -116,17 +146,35 @@ export default function SignupPage() {
               {(role === "student" || role === "faculty" || role === "college-admin") && (
                 <div className="space-y-2">
                   <Label htmlFor="college">College/Institution</Label>
-                  <Input
-                    id="college"
-                    placeholder="Enter college name"
-                    required
-                    value={college}
-                    onChange={(e) => setCollege(e.target.value)}
-                    className="bg-background"
-                  />
+                  <Select value={collegeId} onValueChange={setCollegeId} disabled={loadingColleges}>
+                    <SelectTrigger id="college" className="bg-background">
+                      <SelectValue placeholder={loadingColleges ? "Loading colleges..." : "Select verified college"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {verifiedColleges.length === 0 ? (
+                        <SelectItem value="no-colleges" disabled>
+                          No verified colleges available
+                        </SelectItem>
+                      ) : (
+                        verifiedColleges.map((college) => (
+                          <SelectItem key={college.id} value={college.id}>
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-3 w-3 text-green-600" />
+                              <span>{college.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <ShieldCheck className="h-3 w-3 text-accent" />
                     Registration restricted to verified colleges only.
+                    {verifiedColleges.length === 0 && (
+                      <Link href="/college-registration" className="text-primary hover:underline ml-1">
+                        Register your college
+                      </Link>
+                    )}
                   </p>
                 </div>
               )}
@@ -146,7 +194,11 @@ export default function SignupPage() {
               </div>
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full font-semibold" 
+                disabled={isLoading || (role !== "recruiter" && !collegeId && (role === "student" || role === "faculty" || role === "college-admin"))}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

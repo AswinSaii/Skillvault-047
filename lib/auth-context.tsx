@@ -16,18 +16,20 @@ import { auth, db } from "@/lib/firebase/client"
 export type UserRole = "student" | "faculty" | "college-admin" | "recruiter" | "super-admin"
 
 interface User {
+  uid: string  // Firebase UID
   id: string
   name: string
   email: string
   role: UserRole
   verified?: boolean
   collegeName?: string
+  collegeId?: string
 }
 
 interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  signup: (email: string, password: string, name: string, role: UserRole, collegeName?: string) => Promise<{ success: boolean; error?: string }>
+  signup: (email: string, password: string, name: string, role: UserRole, collegeName?: string, collegeId?: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   isLoading: boolean
 }
@@ -60,12 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userDoc.exists()) {
         const data = userDoc.data()
         setUser({
-          id: firebaseUser.uid,
+          uid: firebaseUser.uid,  // Firebase authentication UID
+          id: firebaseUser.uid,   // Duplicate for backward compatibility
           name: data.name,
           email: data.email,
           role: data.role as UserRole,
           verified: data.verified,
           collegeName: data.collegeName,
+          collegeId: data.collegeId,
         })
       }
     } catch (error) {
@@ -108,12 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const userData = userDoc.data()
       const userProfile: User = {
+        uid: firebaseUser.uid,  // Add Firebase UID
         id: firebaseUser.uid,
         name: userData.name,
         email: userData.email,
         role: userData.role as UserRole,
         verified: userData.verified,
         collegeName: userData.collegeName,
+        collegeId: userData.collegeId,
       }
 
       setUser(userProfile)
@@ -154,7 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string, 
     name: string, 
     role: UserRole, 
-    collegeName?: string
+    collegeName?: string,
+    collegeId?: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
       // Create user with Firebase Auth
@@ -169,17 +176,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
         verified: false,
         collegeName: collegeName || null,
+        collegeId: collegeId || null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
 
       const userProfile: User = {
+        uid: firebaseUser.uid,  // Add Firebase UID
         id: firebaseUser.uid,
         name,
         email,
         role,
         verified: false,
         collegeName,
+        collegeId,
       }
 
       setUser(userProfile)

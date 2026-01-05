@@ -30,16 +30,24 @@ interface NavItem {
   icon: React.ElementType
 }
 
+interface DashboardShellProps {
+  children: React.ReactNode
+  heading?: string
+  description?: string
+}
+
 const roleNavItems: Record<string, NavItem[]> = {
   student: [
     { title: "Overview", href: "/dashboard/student", icon: LayoutDashboard },
     { title: "Assessments", href: "/dashboard/student/assessments", icon: BookOpen },
     { title: "Certificates", href: "/dashboard/student/certificates", icon: Award },
-    { title: "Skill Progress", href: "/dashboard/student/analytics", icon: Settings },
+    { title: "Skills", href: "/dashboard/student/skills", icon: TrendingUp },
+    { title: "Daily Quiz", href: "/dashboard/student/daily-quiz", icon: ShieldCheck },
+    { title: "History", href: "/dashboard/student/history", icon: Settings },
   ],
   faculty: [
     { title: "Overview", href: "/dashboard/faculty", icon: LayoutDashboard },
-    { title: "Assessments", href: "/dashboard/faculty/manage", icon: BookOpen },
+    { title: "Assessments", href: "/dashboard/faculty/assessments", icon: BookOpen },
     { title: "Students", href: "/dashboard/faculty/students", icon: Users },
     { title: "Question Bank", href: "/dashboard/faculty/questions", icon: ShieldCheck },
   ],
@@ -68,7 +76,7 @@ const roleNavItems: Record<string, NavItem[]> = {
   ],
 }
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({ children, heading, description }: DashboardShellProps) {
   const { user, logout } = useAuth()
   const pathname = usePathname()
   const [isMobileNavOpen, setIsMobileNavOpen] = React.useState(false)
@@ -168,7 +176,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="mx-auto max-w-7xl">{children}</div>
+          <div className="mx-auto max-w-7xl">
+            {(heading || description) && (
+              <div className="mb-8">
+                {heading && <h1 className="text-3xl font-bold tracking-tight mb-2">{heading}</h1>}
+                {description && <p className="text-muted-foreground">{description}</p>}
+              </div>
+            )}
+            {children}
+          </div>
         </main>
       </div>
     </div>
