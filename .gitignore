@@ -2,10 +2,12 @@
 
 # dependencies
 /node_modules
+/mcp
 
 # next.js
 /.next/
 /out/
+.vscode
 
 # production
 /build

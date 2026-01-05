@@ -338,11 +338,11 @@ export default function StudentDashboard() {
                     <Button
                       size="sm"
                       onClick={() => {
-                        if (rec.recommendedAssessment) {
-                          router.push(`/dashboard/student/assessments/${rec.recommendedAssessment}`)
+                        if (rec.recommendedAssessments && rec.recommendedAssessments.length > 0) {
+                          router.push(`/dashboard/student/assessments/${rec.recommendedAssessments[0]}`)
                         }
                       }}
-                      disabled={!rec.recommendedAssessment}
+                      disabled={!rec.recommendedAssessments || rec.recommendedAssessments.length === 0}
                     >
                       Start Learning
                     </Button>
