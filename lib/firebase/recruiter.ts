@@ -205,50 +205,47 @@ export async function getStudentCertificates(studentId: string): Promise<Certifi
 
 /**
  * Verify a certificate by its ID
- * @param certificateId - Certificate ID to verify
+ * @param certificateId - Certificate ID to verify (format: CERT-XXXXX)
  * @returns Certificate details if valid, null otherwise
  */
 export async function verifyCertificate(certificateId: string): Promise<CertificateRecord | null> {
   try {
-    // Extract attempt ID from certificate ID (format: CERT-XXXXXXXX)
-    const attemptId = certificateId.replace("CERT-", "").toLowerCase()
-
-    // Query attempts collection for matching ID
-    const attemptsSnapshot = await getDocs(collection(db, "attempts"))
-    const matchingAttempt = attemptsSnapshot.docs.find(doc => 
-      doc.id.slice(-8).toLowerCase() === attemptId
+    // Query certificates collection directly using certificateId field
+    const certificatesQuery = query(
+      collection(db, "certificates"),
+      where("certificateId", "==", certificateId.toUpperCase().trim())
     )
-
-    if (!matchingAttempt) {
-      return null
-    }
-
-    const attempt = matchingAttempt.data()
     
-    // Verify it's a passing grade
-    if (attempt.percentage < 70) {
+    const certificatesSnapshot = await getDocs(certificatesQuery)
+    
+    if (certificatesSnapshot.empty) {
       return null
     }
 
-    // Get assessment and student details
-    const assessmentDoc = await getDoc(doc(db, "assessments", attempt.assessmentId))
-    const assessment = assessmentDoc.exists() ? assessmentDoc.data() : null
+    const certDoc = certificatesSnapshot.docs[0]
+    const certData = certDoc.data()
 
-    const userDoc = await getDoc(doc(db, "users", attempt.studentId))
+    // Check if certificate is active (not revoked)
+    if (certData.status !== "active") {
+      return null
+    }
+
+    // Get student details for verified status
+    const userDoc = await getDoc(doc(db, "users", certData.studentId))
     const user = userDoc.exists() ? userDoc.data() : null
 
     return {
-      id: matchingAttempt.id,
-      studentId: attempt.studentId,
-      studentName: attempt.studentName,
-      assessmentTitle: assessment?.title || "Unknown Assessment",
-      skill: assessment?.skill || "Unknown",
-      score: attempt.score,
-      percentage: attempt.percentage,
-      issuedAt: attempt.submittedAt,
-      certificateId,
-      collegeName: user?.collegeName || "Unknown College",
-      verified: user?.verified || false
+      id: certDoc.id,
+      studentId: certData.studentId,
+      studentName: certData.studentName || "Unknown Student",
+      assessmentTitle: certData.assessmentTitle || "Unknown Assessment",
+      skill: certData.skill || "Unknown",
+      score: certData.score || 0,
+      percentage: certData.percentage || 0,
+      issuedAt: certData.issuedDate?.toDate() || certData.issuedDate || new Date(),
+      certificateId: certData.certificateId || certificateId,
+      collegeName: certData.collegeName || user?.collegeName || "Unknown College",
+      verified: user?.verified || certData.verified || false
     }
   } catch (error) {
     console.error("Error verifying certificate:", error)
@@ -407,15 +404,19 @@ export async function addToShortlist(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Check if already shortlisted
-    const existing = await getDocs(
-      query(
-        collection(db, "shortlist"),
-        where("studentId", "==", studentData.studentId),
-        where("shortlistedBy", "==", recruiterId)
-      )
+    // Use a simpler query that doesn't require a composite index
+    // First get all shortlisted by this recruiter, then filter in memory
+    const recruiterShortlistQuery = query(
+      collection(db, "shortlist"),
+      where("shortlistedBy", "==", recruiterId)
+    )
+    
+    const existingSnapshot = await getDocs(recruiterShortlistQuery)
+    const alreadyShortlisted = existingSnapshot.docs.some(
+      doc => doc.data().studentId === studentData.studentId
     )
 
-    if (!existing.empty) {
+    if (alreadyShortlisted) {
       return { success: false, error: "Student already shortlisted" }
     }
 
@@ -429,6 +430,15 @@ export async function addToShortlist(
     return { success: true }
   } catch (error: any) {
     console.error("Error adding to shortlist:", error)
+    
+    // Check if it's an index error
+    if (error.code === 'failed-precondition' || error.message?.includes('index')) {
+      return { 
+        success: false, 
+        error: "Index is being created. Please wait a few minutes and try again. You can create the index here: https://console.firebase.google.com/v1/r/project/skillvault-1ce22/firestore/indexes?create_composite=ClJwcm9qZWN0cy9za2lsbHZhdWx0LTFjZTIyL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9zaG9ydGxpc3QvaW5kZXhlcy9fEAEaEQoNc2hvcnRsaXN0ZWRCeRABGhEKDXNob3J0bGlzdGVkQXQQAhoMCghfX25hbWVfXxAC" 
+      }
+    }
+    
     return { success: false, error: error.message || "Failed to add to shortlist" }
   }
 }
@@ -436,34 +446,65 @@ export async function addToShortlist(
 /**
  * Get shortlisted candidates for a recruiter
  * @param recruiterId - ID of the recruiter
- * @returns Array of shortlisted candidates
+ * @returns Array of shortlisted candidates with certificate details
  */
 export async function getShortlistedCandidates(recruiterId: string): Promise<ShortlistedCandidate[]> {
   try {
     const shortlistQuery = query(
       collection(db, "shortlist"),
       where("shortlistedBy", "==", recruiterId),
-      orderBy("shortlistedAt", "desc")
+      orderBy("shortlistedAt", "asc")
     )
 
     const snapshot = await getDocs(shortlistQuery)
-    const candidates = snapshot.docs.map(doc => {
-      const data = doc.data()
-      return {
-        id: doc.id,
-        studentId: data.studentId,
-        studentName: data.studentName,
-        studentEmail: data.studentEmail,
-        collegeName: data.collegeName,
-        skills: data.skills || [],
-        avgScore: data.avgScore || 0,
-        certificatesCount: data.certificatesCount || 0,
-        shortlistedBy: data.shortlistedBy,
-        shortlistedAt: data.shortlistedAt,
-        notes: data.notes,
-        status: data.status || 'new'
-      } as ShortlistedCandidate
+    
+    // Sort in descending order (newest first) after fetching
+    const sortedDocs = [...snapshot.docs].sort((a, b) => {
+      const aTime = a.data().shortlistedAt?.toMillis() || 0
+      const bTime = b.data().shortlistedAt?.toMillis() || 0
+      return bTime - aTime // Descending order (newest first)
     })
+    
+    // Get certificates for each student
+    const candidates = await Promise.all(
+      sortedDocs.map(async (doc) => {
+        const data = doc.data()
+        
+        // Fetch certificates for this student
+        const certificatesQuery = query(
+          collection(db, "certificates"),
+          where("studentId", "==", data.studentId),
+          where("status", "==", "active")
+        )
+        const certsSnapshot = await getDocs(certificatesQuery)
+        
+        const certificates = certsSnapshot.docs.map(certDoc => {
+          const certData = certDoc.data()
+          return {
+            certificateId: certData.certificateId || "",
+            skill: certData.skill || "Unknown",
+            percentage: certData.percentage || 0,
+            verified: true // Certificates in the certificates collection are verified
+          }
+        })
+
+        return {
+          id: doc.id,
+          studentId: data.studentId,
+          studentName: data.studentName,
+          studentEmail: data.studentEmail,
+          collegeName: data.collegeName,
+          skills: data.skills || [],
+          avgScore: data.avgScore || 0,
+          certificatesCount: data.certificatesCount || certificates.length,
+          shortlistedBy: data.shortlistedBy,
+          shortlistedAt: data.shortlistedAt,
+          notes: data.notes,
+          status: data.status || 'new',
+          certificates: certificates
+        } as ShortlistedCandidate
+      })
+    )
 
     return candidates
   } catch (error) {

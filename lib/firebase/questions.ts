@@ -310,6 +310,32 @@ export async function getQuestionsBySkill(
 }
 
 /**
+ * Get multiple questions by their IDs
+ */
+export async function getQuestionsByIds(
+  questionIds: string[]
+): Promise<Question[]> {
+  try {
+    if (questionIds.length === 0) return []
+    
+    const questions: Question[] = []
+    
+    // Firestore 'in' queries are limited to 10 items, so we need to batch
+    for (let i = 0; i < questionIds.length; i += 10) {
+      const batch = questionIds.slice(i, i + 10)
+      const promises = batch.map(id => getQuestionById(id))
+      const results = await Promise.all(promises)
+      questions.push(...results.filter((q): q is Question => q !== null))
+    }
+    
+    return questions
+  } catch (error) {
+    console.error("Error fetching questions by IDs:", error)
+    return []
+  }
+}
+
+/**
  * Batch create multiple questions (for AI-generated questions)
  */
 export async function createQuestionsBatch(

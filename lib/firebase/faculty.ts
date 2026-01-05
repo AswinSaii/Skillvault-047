@@ -177,11 +177,13 @@ export async function getFacultyDashboardStats(
     const studentsQuery = query(
       collection(db, "users"),
       where("collegeId", "==", collegeId),
-      where("role", "==", "student"),
-      where("isActive", "==", true)
+      where("role", "==", "student")
     );
     const studentsSnapshot = await getDocs(studentsQuery);
-    const activeStudents = studentsSnapshot.size;
+    // Filter active students (isActive might not exist on all users)
+    const activeStudents = studentsSnapshot.docs.filter(
+      doc => doc.data().isActive !== false && doc.data().verified !== false
+    ).length;
 
     // Get assessments created by faculty
     const assessmentsQuery = query(
@@ -259,13 +261,27 @@ export async function getFacultyDashboardStats(
     const certificatesIssued = certificatesSnapshot.size;
 
     // Get performance data by skill
+    // We need to get assessment data to extract skills
+    const assessmentIds = [...new Set(allAttemptsSnapshot.docs.map(doc => doc.data().assessmentId).filter(Boolean))];
+    const assessmentDocs = await Promise.all(
+      assessmentIds.map(id => getDoc(doc(db, "assessments", id))).filter(Boolean)
+    );
+    const assessmentsMap = new Map();
+    assessmentDocs.forEach(doc => {
+      if (doc.exists()) {
+        assessmentsMap.set(doc.id, doc.data());
+      }
+    });
+
     const skillsMap = new Map<string, { total: number; count: number }>();
     allAttemptsSnapshot.docs.forEach((doc) => {
-      const data = doc.data();
-      if (data.percentage) {
-        const existing = skillsMap.get(data.skill || "Other") || { total: 0, count: 0 };
-        skillsMap.set(data.skill || "Other", {
-          total: existing.total + data.percentage,
+      const attemptData = doc.data();
+      if (attemptData.percentage) {
+        const assessment = assessmentsMap.get(attemptData.assessmentId);
+        const skill = assessment?.skill || "Other";
+        const existing = skillsMap.get(skill) || { total: 0, count: 0 };
+        skillsMap.set(skill, {
+          total: existing.total + attemptData.percentage,
           count: existing.count + 1,
         });
       }
@@ -279,31 +295,45 @@ export async function getFacultyDashboardStats(
       .slice(0, 5);
 
     // Get upcoming assessments
+    // Note: We can't use orderBy on scheduledDate if it might be null/undefined
+    // So we'll fetch all active assessments and filter/sort in memory
     const now = new Date();
     const upcomingQuery = query(
       collection(db, "assessments"),
       where("createdBy", "==", facultyId),
-      where("isActive", "==", true),
-      orderBy("scheduledDate", "asc"),
-      limit(3)
+      where("isActive", "==", true)
     );
     const upcomingSnapshot = await getDocs(upcomingQuery);
     
     const upcomingAssessments = upcomingSnapshot.docs
-      .filter((doc) => {
-        const scheduledDate = doc.data().scheduledDate?.toDate();
-        return scheduledDate && scheduledDate > now;
-      })
       .map((doc) => {
         const data = doc.data();
         const scheduledDate = data.scheduledDate?.toDate();
         return {
           id: doc.id,
           title: data.title,
+          scheduledDate,
           date: scheduledDate ? scheduledDate.toLocaleString() : "Not scheduled",
           students: data.allowedStudents?.length || activeStudents,
         };
-      });
+      })
+      .filter((assessment) => {
+        // Only include assessments with scheduledDate in the future
+        return assessment.scheduledDate && assessment.scheduledDate > now;
+      })
+      .sort((a, b) => {
+        // Sort by scheduledDate ascending
+        if (!a.scheduledDate) return 1;
+        if (!b.scheduledDate) return -1;
+        return a.scheduledDate.getTime() - b.scheduledDate.getTime();
+      })
+      .slice(0, 3)
+      .map((assessment) => ({
+        id: assessment.id,
+        title: assessment.title,
+        date: assessment.date,
+        students: assessment.students,
+      }));
 
     // Get top performers
     const topPerformersMap = new Map<string, { total: number; count: number; name: string; skills: Set<string> }>();
@@ -409,13 +439,32 @@ export async function getProctoringAlerts(
     if (assessmentIds.length === 0) return [];
 
     // Get attempts with proctoring flags
-    const attemptsQuery = query(
-      collection(db, "attempts"),
-      where("collegeId", "==", collegeId),
-      orderBy("startedAt", "desc"),
-      limit(20)
-    );
-    const attemptsSnapshot = await getDocs(attemptsQuery);
+    // Use try-catch to handle index errors gracefully
+    let attemptsSnapshot;
+    try {
+      const attemptsQuery = query(
+        collection(db, "attempts"),
+        where("collegeId", "==", collegeId),
+        orderBy("startedAt", "desc"),
+        limit(20)
+      );
+      attemptsSnapshot = await getDocs(attemptsQuery);
+    } catch (indexError: any) {
+      // If index doesn't exist, fetch without orderBy and sort in memory
+      console.warn("Index not found, fetching without orderBy:", indexError);
+      const attemptsQuery = query(
+        collection(db, "attempts"),
+        where("collegeId", "==", collegeId),
+        limit(50) // Get more to account for filtering
+      );
+      attemptsSnapshot = await getDocs(attemptsQuery);
+      // Sort in memory
+      attemptsSnapshot.docs.sort((a, b) => {
+        const aTime = a.data().startedAt?.toDate()?.getTime() || 0;
+        const bTime = b.data().startedAt?.toDate()?.getTime() || 0;
+        return bTime - aTime;
+      });
+    }
 
     const alerts: ProctoringAlert[] = [];
     

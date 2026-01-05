@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/auth-context"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,14 +17,22 @@ import {
   Users,
   Mail,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  Copy,
+  Loader2,
+  Bookmark,
+  BookmarkCheck
 } from "lucide-react"
 import { 
   searchStudentsBySkill, 
   verifyCertificate, 
   getSkillStatistics,
-  getTopStudents 
+  getTopStudents,
+  addToShortlist
 } from "@/lib/firebase/recruiter"
+import { getCertificatesByStudent, getCertificateByCertificateId } from "@/lib/firebase/certificates"
+import type { Certificate } from "@/lib/firebase/certificates"
+import { toast } from "sonner"
 import { 
   Dialog,
   DialogContent,
@@ -34,8 +43,10 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DummyDataButton } from "@/components/dummy-data-button"
 
 export default function RecruiterPage() {
+  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [minProficiency, setMinProficiency] = useState("70")
   const [searchResults, setSearchResults] = useState<any[]>([])
@@ -52,6 +63,10 @@ export default function RecruiterPage() {
   // Selected student details
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
   const [showStudentDialog, setShowStudentDialog] = useState(false)
+  const [certificates, setCertificates] = useState<Certificate[]>([])
+  const [loadingCertificates, setLoadingCertificates] = useState(false)
+  const [showCertificates, setShowCertificates] = useState(false)
+  const [shortlisting, setShortlisting] = useState<string | null>(null)
 
   useEffect(() => {
     loadInitialData()
@@ -91,11 +106,17 @@ export default function RecruiterPage() {
     setVerifying(true)
     setVerifyResult(null)
     try {
-      const result = await verifyCertificate(certId.toUpperCase())
-      setVerifyResult(result)
+      const result = await verifyCertificate(certId.toUpperCase().trim())
+      if (result) {
+        setVerifyResult(result)
+      } else {
+        setVerifyResult({ 
+          error: `Certificate ID "${certId.toUpperCase().trim()}" is invalid or not found in the database. Please check the ID and try again.` 
+        })
+      }
     } catch (error) {
       console.error("Verification error:", error)
-      setVerifyResult({ error: "Failed to verify certificate" })
+      setVerifyResult({ error: "An error occurred while verifying the certificate. Please try again." })
     } finally {
       setVerifying(false)
     }
@@ -104,6 +125,71 @@ export default function RecruiterPage() {
   const viewStudentDetails = (student: any) => {
     setSelectedStudent(student)
     setShowStudentDialog(true)
+    setShowCertificates(false)
+    setCertificates([])
+  }
+
+  const handleViewCertificates = async () => {
+    if (!selectedStudent?.id) return
+
+    setLoadingCertificates(true)
+    setShowCertificates(true)
+    try {
+      const certs = await getCertificatesByStudent(selectedStudent.id)
+      setCertificates(certs)
+    } catch (error) {
+      console.error("Error loading certificates:", error)
+      toast.error("Failed to load certificates")
+      setCertificates([])
+    } finally {
+      setLoadingCertificates(false)
+    }
+  }
+
+  const handleShortlistStudent = async (student: any, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!user?.uid) {
+      toast.error("Please log in to shortlist students")
+      return
+    }
+
+    setShortlisting(student.id)
+    try {
+      // Get student's skills and certificates
+      const certs = await getCertificatesByStudent(student.id)
+      const skills = certs.map(cert => cert.skill).filter((skill, index, self) => self.indexOf(skill) === index)
+      
+      // Calculate average score from certificates
+      const avgScore = certs.length > 0 
+        ? Math.round(certs.reduce((sum, cert) => sum + cert.percentage, 0) / certs.length)
+        : student.skillData?.avgScore || 0
+
+      const result = await addToShortlist({
+        studentId: student.id,
+        studentName: student.name,
+        studentEmail: student.email,
+        collegeName: student.collegeName || "Unknown College",
+        skills: skills.length > 0 ? skills : [student.skillData?.skill || searchQuery],
+        avgScore: avgScore,
+        certificatesCount: certs.length,
+      }, user.uid)
+
+      if (result.success) {
+        toast.success(`${student.name} added to shortlist`)
+      } else {
+        toast.error(result.error || "Failed to add to shortlist")
+      }
+    } catch (error) {
+      console.error("Error shortlisting student:", error)
+      toast.error("Failed to add student to shortlist")
+    } finally {
+      setShortlisting(null)
+    }
+  }
+
+  const copyCertificateId = (certificateId: string) => {
+    navigator.clipboard.writeText(certificateId)
+    toast.success("Certificate ID copied to clipboard!")
   }
 
   return (
@@ -112,6 +198,9 @@ export default function RecruiterPage() {
       description="Search and verify top talent based on demonstrable skills"
     >
       <div className="space-y-6">
+        <div className="flex justify-end">
+          <DummyDataButton />
+        </div>
         {/* Search Section */}
         <Card>
           <CardHeader>
@@ -194,12 +283,31 @@ export default function RecruiterPage() {
                             <Badge variant="outline">{student.skillData.certificatesEarned}</Badge>
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
-                          e.stopPropagation()
-                          viewStudentDetails(student)
-                        }}>
-                          View Profile
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1" 
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              viewStudentDetails(student)
+                            }}
+                          >
+                            View Profile
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={(e) => handleShortlistStudent(student, e)}
+                            disabled={shortlisting === student.id}
+                          >
+                            {shortlisting === student.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Bookmark className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -462,11 +570,139 @@ export default function RecruiterPage() {
                   <Mail className="h-4 w-4 mr-2" />
                   Send Email
                 </Button>
-                <Button variant="outline" className="flex-1">
-                  <Award className="h-4 w-4 mr-2" />
-                  View Certificates
+                <Button 
+                  variant="default"
+                  className="flex-1"
+                  onClick={(e) => handleShortlistStudent(selectedStudent, e)}
+                  disabled={shortlisting === selectedStudent.id}
+                >
+                  {shortlisting === selectedStudent.id ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Bookmark className="h-4 w-4 mr-2" />
+                      Add to Shortlist
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={handleViewCertificates}
+                  disabled={loadingCertificates}
+                >
+                  {loadingCertificates ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Award className="h-4 w-4 mr-2" />
+                      View Certificates
+                    </>
+                  )}
                 </Button>
               </div>
+
+              {showCertificates && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle className="text-base">Certificates</CardTitle>
+                    <CardDescription>
+                      Certificate IDs for verification. Click to copy.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingCertificates ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin" />
+                        <p className="text-sm">Loading certificates...</p>
+                      </div>
+                    ) : certificates.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Award className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No certificates found</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {certificates.map((cert) => (
+                          <div 
+                            key={cert.id}
+                            className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{cert.assessmentTitle || cert.skill}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {cert.skill} • Score: {cert.percentage}% • Issued: {new Date(cert.issuedDate).toLocaleDateString()}
+                              </div>
+                              <div className="mt-2">
+                                <div className="text-xs text-muted-foreground mb-1">Certificate ID:</div>
+                                <div className="flex items-center gap-2">
+                                  <code 
+                                    className="text-xs bg-muted px-2 py-1 rounded font-mono cursor-pointer hover:bg-muted/80 transition-colors select-all"
+                                    onClick={() => copyCertificateId(cert.certificateId)}
+                                    title="Click to copy"
+                                  >
+                                    {cert.certificateId}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => copyCertificateId(cert.certificateId)}
+                                    title="Copy Certificate ID"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                setCertId(cert.certificateId)
+                                setShowStudentDialog(false)
+                                setShowVerifyDialog(true)
+                                setVerifying(true)
+                                setVerifyResult(null)
+                                try {
+                                  const certData = await getCertificateByCertificateId(cert.certificateId)
+                                  if (certData) {
+                                    setVerifyResult({
+                                      studentName: certData.studentName,
+                                      collegeName: certData.collegeName,
+                                      verified: true,
+                                      assessmentTitle: certData.assessmentTitle,
+                                      skill: certData.skill,
+                                      percentage: certData.percentage,
+                                      issuedAt: certData.issuedDate,
+                                    })
+                                  } else {
+                                    setVerifyResult({ error: "Certificate not found" })
+                                  }
+                                } catch (error) {
+                                  console.error("Verification error:", error)
+                                  setVerifyResult({ error: "Failed to verify certificate" })
+                                } finally {
+                                  setVerifying(false)
+                                }
+                              }}
+                            >
+                              <ShieldCheck className="h-4 w-4 mr-1" />
+                              Verify
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </DialogContent>

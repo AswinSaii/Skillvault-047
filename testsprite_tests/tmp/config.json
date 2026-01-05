@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "executionArgs": {
+    "projectName": "skillvaultplatform",
+    "projectPath": "C:\\Users\\asus\\Downloads\\skillvaultplatform",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-5Jjgb5MR-NQ6GkIcLqCrk6qoytl61yZqTetQOF_0Mq_P1gxQ2srVfde2RtXhTsAywdoQpicSWSt6AlQXa1L3o00ZIIAcvlXc4N_hgh2DE4YXDpnDcf9T7RfhdRIAWxjS864"
+    }
+  },
+  "proxy": "http://f17d6dc4-a7d3-4114-96b9-a625d4659f86:hZaU3efNH6Uidpjwx672kNKIYsukIBMi@tun.testsprite.com:8080"
+}

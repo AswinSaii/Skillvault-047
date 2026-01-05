@@ -42,12 +42,15 @@ export default function VerifyCertificatePage() {
       
       if (certificate) {
         setResult(certificate)
+        setError(null)
       } else {
-        setError("Certificate not found or invalid")
+        setError(`Certificate ID "${certificateId.toUpperCase().trim()}" is invalid or not found in the database. Please check the ID and try again.`)
+        setResult(null)
       }
     } catch (err) {
       console.error("Verification error:", err)
-      setError("An error occurred while verifying the certificate")
+      setError("An error occurred while verifying the certificate. Please try again.")
+      setResult(null)
     } finally {
       setVerifying(false)
     }

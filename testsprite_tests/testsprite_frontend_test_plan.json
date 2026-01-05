@@ -1,0 +1,503 @@
+[
+  {
+    "id": "TC001",
+    "title": "Verify role-based authentication and authorization",
+    "description": "Ensure that users can register and login according to their roles (student, faculty, college admin, recruiter, super admin) with appropriate access control and restrictions.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the registration page."
+      },
+      {
+        "type": "action",
+        "description": "Register a new student account under a verified college."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify registration success and that student role is assigned."
+      },
+      {
+        "type": "action",
+        "description": "Login as the newly registered student."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify student dashboard access only."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access faculty or admin pages."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied to unauthorized pages."
+      },
+      {
+        "type": "action",
+        "description": "Login with faculty, college admin, recruiter, and super admin accounts."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify each role has access only to their respective dashboards and features."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Assessment creation and CRUD operations",
+    "description": "Validate full CRUD operations for assessments including MCQs, coding challenges, practical tasks, and mixed types with multiple difficulty levels.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as faculty user."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to assessment management page."
+      },
+      {
+        "type": "action",
+        "description": "Create an MCQ assessment with several questions and multiple difficulty levels."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the assessment is saved and visible in the list."
+      },
+      {
+        "type": "action",
+        "description": "Edit the assessment by adding a coding challenge question."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the update is saved and reflected correctly."
+      },
+      {
+        "type": "action",
+        "description": "Delete the assessment."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the assessment is removed from the list."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create an assessment without required fields."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify proper validation errors are shown."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "AI-powered question generation integration",
+    "description": "Verify that the AI question generation feature correctly creates valid assessment questions using the OpenAI API.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as faculty."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to question generation interface."
+      },
+      {
+        "type": "action",
+        "description": "Input prompt for question generation including topic and difficulty."
+      },
+      {
+        "type": "action",
+        "description": "Submit request to generate questions."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the returned questions are relevant, properly formatted, and appear in question bank."
+      },
+      {
+        "type": "action",
+        "description": "Trigger question generation with invalid or empty prompts."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify appropriate error messages are shown and no invalid questions are created."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Certificate generation and QR code verification",
+    "description": "Ensure certificates generated after assessments include QR codes and can be verified through the dedicated verification portal.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Complete an assessment successfully as a student."
+      },
+      {
+        "type": "action",
+        "description": "Trigger certificate generation from the student dashboard."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the certificate PDF is generated including accurate student details and a valid QR code."
+      },
+      {
+        "type": "action",
+        "description": "Access the certificate verification page."
+      },
+      {
+        "type": "action",
+        "description": "Scan or input certificate QR code or ID."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the certificate authenticity and linked college verification badge."
+      },
+      {
+        "type": "action",
+        "description": "Try verification with an invalid or tampered certificate ID."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify verification failure and user is informed."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Daily quiz functionality and streak tracking",
+    "description": "Test daily quiz participation workflow including streak tracking, resetting after missed days, and visual feedback.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as student and navigate to daily quiz page."
+      },
+      {
+        "type": "action",
+        "description": "Complete the daily quiz."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify quiz is recorded, streak count increments, and visual indicators update correctly."
+      },
+      {
+        "type": "action",
+        "description": "Simulate next day participation and complete quiz."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify streak continues increasing."
+      },
+      {
+        "type": "action",
+        "description": "Simulate missing a day without quiz participation."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify streak resets to zero and user is notified visually."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Anti-cheating measures during assessments",
+    "description": "Verify enforcement of fullscreen mode, tab switch detection, and disabling of copy-paste to prevent cheating during assessments.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as student and start an assessment."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the assessment enforces fullscreen mode."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to switch tabs or windows while assessment is in progress."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify detection of tab switch and appropriate warnings or session termination."
+      },
+      {
+        "type": "action",
+        "description": "Attempt copy-paste operations within the assessment window."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify copy-paste is disabled or prevented successfully."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Recruiter search and certificate verification without exposing academic marks",
+    "description": "Ensure recruiter portal allows searching and filtering by verified skills and certificates and verifies certificates without showing academic marks or CGPA.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as recruiter."
+      },
+      {
+        "type": "action",
+        "description": "Use search and filter options to find students by skill and certification status."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify results only show verified skills and certificates with no academic marks or CGPA."
+      },
+      {
+        "type": "action",
+        "description": "Select a student and use certificate verification to validate authenticity."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify certificate is valid and results include college verification badge."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access academic marks or CGPA fields within recruiter portal."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no academic marks or CGPA information is displayed or accessible."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Skill gap analysis and personalized recommendation accuracy",
+    "description": "Validate that skill gap analysis reviews student assessment performance data correctly and provides relevant personalized skill development recommendations.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as student and view skill gap analysis page."
+      },
+      {
+        "type": "action",
+        "description": "Check recommendations based on completed assessments and identified weak skill areas."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recommendations align logically with student's assessment results and skill gaps."
+      },
+      {
+        "type": "action",
+        "description": "Simulate improvement by completing additional assessments with better performance."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated recommendations reflect improved skill levels."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Resume PDF generation includes verified skills and certificates",
+    "description": "Ensure that resume generation for students outputs accurate PDFs that correctly list verified skills and certificates without errors.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as student with multiple verified certificates and skills."
+      },
+      {
+        "type": "action",
+        "description": "Generate resume PDF from the dashboard."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the generated PDF contains all verified skills and certificates with correct formatting."
+      },
+      {
+        "type": "action",
+        "description": "Open the PDF to verify visual integrity and data accuracy."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no missing or incorrect data and the PDF is not corrupted."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "College registration and verification badge enforcement",
+    "description": "Test that only verified colleges can register, that students and faculty are attached correctly, and verified badges are displayed consistently across the platform.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt college registration with valid verification information."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify college registration approval and verified badge issuance."
+      },
+      {
+        "type": "action",
+        "description": "Register students and faculty under the verified college."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify users are linked to the verified college and badges appear on user profiles and certificates."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to register an unverified college."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify registration is blocked or marked unverified and badges do not appear."
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Dashboard data integrity and role-specific analytics display",
+    "description": "Verify that each role’s dashboard (student, faculty, college admin, recruiter, super admin) displays correct and consistent data and analytics relevant to their scope.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as student and verify assessment status, skill progress, certificates, and quiz streaks on the dashboard."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data accuracy and expected visual components appear."
+      },
+      {
+        "type": "action",
+        "description": "Login as faculty and verify management views for assessments, question banks, student performance analytics."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify displayed data matches backend and permissions."
+      },
+      {
+        "type": "action",
+        "description": "Login as college admin and verify dashboard content managing college users and certificates."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify data integrity and permissions."
+      },
+      {
+        "type": "action",
+        "description": "Login as recruiter and verify student search results and certificate verifications."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify only authorized data is shown."
+      },
+      {
+        "type": "action",
+        "description": "Login as super admin and verify global analytics, user and college management, template controls."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify accuracy and completeness of data."
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Dynamic certificate template management",
+    "description": "Validate that super admins can create, update, and assign certificate templates dynamically by course, department, and issuer.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as super admin."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to certificate template management page."
+      },
+      {
+        "type": "action",
+        "description": "Create a new certificate template with custom fields and branding."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the template is saved and listed."
+      },
+      {
+        "type": "action",
+        "description": "Edit the template to change issuer logo or layout."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify changes are applied and visible when generating certificates."
+      },
+      {
+        "type": "action",
+        "description": "Assign templates to specific courses or departments."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify certificates generated for those assignments use correct templates."
+      },
+      {
+        "type": "action",
+        "description": "Delete or deactivate a template and ensure fallback templates are used."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no broken certificate generation results."
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "UI components and responsive design verification across devices",
+    "description": "Ensure that all UI components render properly, are usable, and responsive across desktop, tablet, and mobile devices for all user roles.",
+    "category": "ui",
+    "priority": "Low",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as each role and navigate through key pages (dashboards, assessments, certificates, search, settings)."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI components render correctly with proper layout and no visual glitches."
+      },
+      {
+        "type": "action",
+        "description": "Resize browser or simulate devices to test responsiveness."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify content reflows appropriately and remains functional on different screen sizes."
+      },
+      {
+        "type": "action",
+        "description": "Test critical interactive UI elements like buttons, dialogs, dropdowns, tables, and forms."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify elements respond to user interaction as expected without errors."
+      }
+    ]
+  }
+]

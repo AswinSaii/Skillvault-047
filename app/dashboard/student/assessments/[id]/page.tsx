@@ -20,7 +20,7 @@ import {
   FileCode,
   ListChecks
 } from "lucide-react"
-import { getQuestionsBySkill, Question as FirebaseQuestion } from "@/lib/firebase/questions"
+import { getQuestionsBySkill, getQuestionsByIds, Question as FirebaseQuestion } from "@/lib/firebase/questions"
 import { createAttempt, updateAttempt } from "@/lib/firebase/assessments"
 import { collection, doc, getDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase/client"
@@ -77,12 +77,12 @@ export default function TakeAssessmentPage() {
           const assessmentData = { id: assessmentDoc.id, ...assessmentDoc.data() } as any
           setAssessment(assessmentData)
 
-          // Load questions for this skill (using user's college ID)
-          if (user?.collegeId) {
-            const questionsData = await getQuestionsBySkill(user.collegeId, assessmentData.skill)
+          // Load questions for this assessment
+          // First try to load questions by their IDs from the assessment
+          if (assessmentData.questions && assessmentData.questions.length > 0) {
+            const questionsData = await getQuestionsByIds(assessmentData.questions)
             const selectedQuestions = questionsData
               .filter((q: FirebaseQuestion) => q.isActive)
-              .slice(0, assessmentData.totalQuestions || 10)
               .map((q: FirebaseQuestion) => ({
                 id: q.id || "",
                 title: q.title,
@@ -95,11 +95,36 @@ export default function TakeAssessmentPage() {
                 points: q.points
               }))
             
-            setQuestions(selectedQuestions)
-            setTimeRemaining(assessmentData.duration * 60) // Convert minutes to seconds
+            if (selectedQuestions.length > 0) {
+              setQuestions(selectedQuestions)
+              setTimeRemaining(assessmentData.duration * 60) // Convert minutes to seconds
+              // Initialize answers array
+              setAnswers(selectedQuestions.map(q => ({ questionId: q.id, answer: "", timeSpent: 0 })))
+            }
+          } else if (user?.collegeId) {
+            // Fallback: Load questions by skill if assessment doesn't have specific question IDs
+            const questionsData = await getQuestionsBySkill(user.collegeId, assessmentData.skill)
+            const selectedQuestions = questionsData
+              .filter((q: FirebaseQuestion) => q.isActive)
+              .slice(0, assessmentData.questions?.length || 10)
+              .map((q: FirebaseQuestion) => ({
+                id: q.id || "",
+                title: q.title,
+                description: q.description,
+                type: q.type,
+                skill: q.skill,
+                difficulty: q.difficulty,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                points: q.points
+              }))
             
-            // Initialize answers array
-            setAnswers(selectedQuestions.map(q => ({ questionId: q.id, answer: "", timeSpent: 0 })))
+            if (selectedQuestions.length > 0) {
+              setQuestions(selectedQuestions)
+              setTimeRemaining(assessmentData.duration * 60) // Convert minutes to seconds
+              // Initialize answers array
+              setAnswers(selectedQuestions.map(q => ({ questionId: q.id, answer: "", timeSpent: 0 })))
+            }
           }
         }
         setLoading(false)
@@ -451,6 +476,22 @@ export default function TakeAssessmentPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tab Switch Warning Banner */}
+      {tabSwitchCount > 0 && (
+        <Alert variant={tabSwitchCount >= 3 ? "destructive" : "default"} className="max-w-4xl mx-auto mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {tabSwitchCount >= 3 ? (
+              <strong>⚠️ Assessment auto-submitted due to multiple tab switches ({tabSwitchCount}/3)</strong>
+            ) : (
+              <span>
+                <strong>Warning:</strong> Tab switch detected ({tabSwitchCount}/3). Switching tabs again will result in auto-submission.
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Header */}
       <div className="max-w-4xl mx-auto space-y-4">

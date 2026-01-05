@@ -51,20 +51,31 @@ export default function SignupPage() {
 
     try {
       // Validate college verification for roles that require it
+      // Allow skipping in test mode or if no college selected for recruiter/super-admin
+      const isTestMode = process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_TEST_MODE === "true"
+      const canSkipCollege = role === "recruiter" || role === "super-admin"
+      
       if ((role === "student" || role === "faculty" || role === "college-admin") && collegeId) {
         const verificationResult = await isCollegeVerified(collegeId)
-        if (!verificationResult.isVerified) {
+        if (!verificationResult.isVerified && !isTestMode) {
           setError("Selected college is not verified. Please contact your institution or register your college.")
           setIsLoading(false)
           return
         }
       }
 
-      // Find selected college name
+      // Find selected college name or use default for test mode
       const selectedCollege = verifiedColleges.find(c => c.id === collegeId)
-      const collegeName = selectedCollege?.name || ""
+      let collegeName = selectedCollege?.name || ""
+      let finalCollegeId = collegeId
 
-      const result = await signup(email, password, name, role, collegeName, collegeId)
+      // In test mode, allow creating users with default college if none selected
+      if (isTestMode && !collegeId && (role === "student" || role === "faculty" || role === "college-admin")) {
+        collegeName = "Test College"
+        finalCollegeId = "college_1"
+      }
+
+      const result = await signup(email, password, name, role, collegeName, finalCollegeId || undefined)
       if (!result.success) {
         setError(result.error || "Signup failed. Please try again.")
       }

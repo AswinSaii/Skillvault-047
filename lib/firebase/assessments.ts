@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { issueCertificate } from "./certificates";
 import {
   collection,
   addDoc,
@@ -350,6 +351,63 @@ export async function updateAttempt(
       success: false,
       error: error.message || "Failed to update attempt",
     };
+  }
+}
+
+/**
+ * Complete an attempt and automatically issue certificate if passing
+ */
+export async function completeAttemptWithCertificate(
+  attemptId: string,
+  attemptData: Partial<Attempt>,
+  assessmentData: Assessment,
+  studentData: { id: string; name: string; email: string },
+  collegeData: { id: string; name: string }
+): Promise<{ success: boolean; certificateIssued?: boolean; error?: string }> {
+  try {
+    // Update the attempt
+    const updateResult = await updateAttempt(attemptId, attemptData)
+    if (!updateResult.success) {
+      return updateResult
+    }
+
+    // Check if certificate should be issued (passing grade)
+    const passingGrade = assessmentData.passingGrade || 70
+    const percentage = attemptData.percentage || 0
+    
+    if (attemptData.status === "completed" && percentage >= passingGrade) {
+      // Issue certificate
+      const certResult = await issueCertificate({
+        studentId: studentData.id,
+        studentName: studentData.name,
+        studentEmail: studentData.email,
+        collegeId: collegeData.id,
+        collegeName: collegeData.name,
+        assessmentId: assessmentData.id || "",
+        assessmentTitle: assessmentData.title,
+        skill: assessmentData.skill,
+        score: attemptData.score || 0,
+        percentage,
+        passingGrade,
+        attemptId,
+      })
+
+      return {
+        success: true,
+        certificateIssued: certResult.success,
+      }
+    }
+
+    return {
+      success: true,
+      certificateIssued: false,
+    }
+  } catch (error: any) {
+    console.error("Error completing attempt with certificate:", error)
+    return {
+      success: false,
+      error: error.message || "Failed to complete attempt",
+    }
   }
 }
 

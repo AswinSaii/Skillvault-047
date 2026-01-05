@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth-context"
 import { CollegeVerificationBadge } from "@/components/college-verification-badge"
+import { DummyDataButton } from "@/components/dummy-data-button"
 import Link from "next/link"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -25,20 +26,23 @@ export default function CollegeAdminDashboard() {
   return (
     <DashboardShell>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">College Administration</h1>
-          <div className="mt-2">
-            {user?.collegeId ? (
-              <CollegeVerificationBadge 
-                userId={user.id} 
-                collegeName={user.collegeName}
-                size="md"
-                variant="subtle"
-              />
-            ) : (
-              <p className="text-muted-foreground">{user?.collegeName || "College Dashboard"}</p>
-            )}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">College Administration</h1>
+            <div className="mt-2">
+              {user?.collegeId ? (
+                <CollegeVerificationBadge 
+                  userId={user.id} 
+                  collegeName={user.collegeName}
+                  size="md"
+                  variant="subtle"
+                />
+              ) : (
+                <p className="text-muted-foreground">{user?.collegeName || "College Dashboard"}</p>
+              )}
+            </div>
           </div>
+          <DummyDataButton />
         </div>
 
         {!user?.collegeId && (

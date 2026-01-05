@@ -110,11 +110,8 @@ export default function AssessmentsManagement() {
   }
 
   const handleCreate = async () => {
-    console.log("Current user object:", user)
-    
     if (!user?.uid) {
       toast.error("User information missing. Please try logging in again.")
-      console.error("No user UID found. User object:", user)
       return
     }
 
@@ -138,12 +135,6 @@ export default function AssessmentsManagement() {
       toast.error("Number of questions must be between 1 and 50")
       return
     }
-
-    console.log("Creating assessment with data:", {
-      ...formData,
-      createdBy: user.uid,
-      collegeId: user.collegeId || 'default'
-    })
 
     setCreating(true)
     setGeneratingQuestions(true)
@@ -216,8 +207,6 @@ export default function AssessmentsManagement() {
         dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
         tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
       })
-
-      console.log("Assessment creation result:", result)
 
       if (result.success) {
         toast.success(`Assessment "${formData.title}" created with ${questionData.count} questions!`)

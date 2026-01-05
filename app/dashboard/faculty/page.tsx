@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, FileText, BarChart3, PlusCircle, Award, Clock, TrendingUp, AlertCircle } from "lucide-react"
+import { Users, FileText, BarChart3, PlusCircle, Award, Clock, TrendingUp, AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -14,24 +14,40 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { cn } from "@/lib/utils"
 import { getFacultyDashboardStats, FacultyStats, getProctoringAlerts, ProctoringAlert } from "@/lib/firebase/faculty"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DummyDataButton } from "@/components/dummy-data-button"
 
 export default function FacultyDashboard() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [stats, setStats] = useState<FacultyStats | null>(null)
   const [alerts, setAlerts] = useState<ProctoringAlert[]>([])
 
   useEffect(() => {
     loadDashboardData()
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      if (!loading && !refreshing) {
+        loadDashboardData(true)
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
   }, [user])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (silent = false) => {
     if (!user?.uid) {
       setLoading(false)
       return
     }
 
-    setLoading(true)
+    if (!silent) {
+      setLoading(true)
+    } else {
+      setRefreshing(true)
+    }
+
     try {
       const collegeId = user.collegeId || 'default'
       
@@ -46,6 +62,7 @@ export default function FacultyDashboard() {
       console.error("Error loading dashboard data:", error)
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -103,12 +120,23 @@ export default function FacultyDashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Faculty Dashboard</h1>
             <p className="text-muted-foreground">Manage assessments and monitor student performance.</p>
           </div>
-          <Button className="gap-2" asChild>
-            <Link href="/dashboard/faculty/assessments">
-              <PlusCircle className="h-4 w-4" />
-              New Assessment
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <DummyDataButton />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => loadDashboardData()}
+              disabled={loading || refreshing}
+            >
+              <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+            </Button>
+            <Button className="gap-2" asChild>
+              <Link href="/dashboard/faculty/assessments">
+                <PlusCircle className="h-4 w-4" />
+                New Assessment
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

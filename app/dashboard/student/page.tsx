@@ -27,6 +27,7 @@ import { getUserStreak } from "@/lib/firebase/assessments"
 import { getActiveAssessmentsForStudent } from "@/lib/firebase/assessments"
 import { getAttemptsByStudent } from "@/lib/firebase/assessments"
 import { getSkillRecommendations, SkillRecommendation } from "@/lib/firebase/recommendations"
+import { DummyDataButton } from "@/components/dummy-data-button"
 
 export default function StudentDashboard() {
   const { user } = useAuth()
@@ -81,6 +82,9 @@ export default function StudentDashboard() {
       description="Welcome back! Track your skills and maintain your streak."
     >
       <div className="space-y-6">
+        <div className="flex justify-end">
+          <DummyDataButton />
+        </div>
         {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>

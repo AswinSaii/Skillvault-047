@@ -15,7 +15,8 @@ import {
   GraduationCap,
   Search,
   Filter,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2
 } from "lucide-react"
 import { getShortlistedCandidates, removeFromShortlist, ShortlistedCandidate } from "@/lib/firebase/recruiter"
 import {
@@ -306,6 +307,42 @@ export default function ShortlistedCandidatesPage() {
                                   {skill}
                                 </Badge>
                               ))}
+                            </div>
+                          )}
+
+                          {/* Certificates with Domain and Certificate ID */}
+                          {candidate.certificates && candidate.certificates.length > 0 && (
+                            <div className="space-y-2 mb-3">
+                              <div className="text-sm font-semibold text-muted-foreground">Certificates:</div>
+                              <div className="space-y-2">
+                                {candidate.certificates.map((cert: any, idx: number) => (
+                                  <div 
+                                    key={idx} 
+                                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Badge variant="secondary">{cert.skill}</Badge>
+                                        {cert.verified && (
+                                          <Badge className="bg-green-100 text-green-800 border-green-200">
+                                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                                            Verified
+                                          </Badge>
+                                        )}
+                                        <span className="text-xs text-muted-foreground">
+                                          {cert.percentage}%
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs text-muted-foreground">Certificate ID:</span>
+                                        <code className="text-xs bg-background px-2 py-1 rounded font-mono">
+                                          {cert.certificateId}
+                                        </code>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
 
