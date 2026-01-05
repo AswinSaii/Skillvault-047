@@ -11,6 +11,8 @@
 
 # production
 /build
+/tests
+/testsprite_tests
 
 # debug
 npm-debug.log*
