@@ -3,11 +3,11 @@ import QRCode from "qrcode"
 import type { Certificate } from "@/lib/firebase/certificates"
 
 /**
- * Generate a certificate PDF with QR code
+ * Generate a certificate PDF matching the official template design
  */
 export async function generateCertificatePDF(certificate: Certificate): Promise<Blob> {
   const pdf = new jsPDF({
-    orientation: "landscape",
+    orientation: "portrait",
     unit: "mm",
     format: "a4",
   })
@@ -15,138 +15,185 @@ export async function generateCertificatePDF(certificate: Certificate): Promise<
   const width = pdf.internal.pageSize.getWidth()
   const height = pdf.internal.pageSize.getHeight()
 
-  // Background gradient effect (simulated with rectangles)
-  pdf.setFillColor(240, 245, 255)
+  // Light beige background
+  pdf.setFillColor(250, 245, 235) // Light beige
   pdf.rect(0, 0, width, height, "F")
 
-  // Border
-  pdf.setLineWidth(2)
-  pdf.setDrawColor(59, 130, 246) // Primary blue
-  pdf.rect(10, 10, width - 20, height - 20, "S")
+  // Decorative corner borders (light brown)
+  const borderColor = [139, 115, 85] // Light brown RGB
+  pdf.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+  pdf.setLineWidth(1)
+  
+  // Top-left corner decoration
+  const cornerSize = 15
+  pdf.line(20, 20, 20 + cornerSize, 20)
+  pdf.line(20, 20, 20, 20 + cornerSize)
+  pdf.line(20, 20 + cornerSize, 20 + cornerSize * 0.7, 20 + cornerSize)
+  pdf.line(20 + cornerSize * 0.7, 20 + cornerSize, 20 + cornerSize * 0.7, 20 + cornerSize * 0.7)
+  
+  // Top-right corner decoration
+  pdf.line(width - 20, 20, width - 20 - cornerSize, 20)
+  pdf.line(width - 20, 20, width - 20, 20 + cornerSize)
+  pdf.line(width - 20, 20 + cornerSize, width - 20 - cornerSize * 0.7, 20 + cornerSize)
+  pdf.line(width - 20 - cornerSize * 0.7, 20 + cornerSize, width - 20 - cornerSize * 0.7, 20 + cornerSize * 0.7)
+  
+  // Bottom-left corner decoration
+  pdf.line(20, height - 20, 20 + cornerSize, height - 20)
+  pdf.line(20, height - 20, 20, height - 20 - cornerSize)
+  pdf.line(20, height - 20 - cornerSize, 20 + cornerSize * 0.7, height - 20 - cornerSize)
+  pdf.line(20 + cornerSize * 0.7, height - 20 - cornerSize, 20 + cornerSize * 0.7, height - 20 - cornerSize * 0.7)
+  
+  // Bottom-right corner decoration
+  pdf.line(width - 20, height - 20, width - 20 - cornerSize, height - 20)
+  pdf.line(width - 20, height - 20, width - 20, height - 20 - cornerSize)
+  pdf.line(width - 20, height - 20 - cornerSize, width - 20 - cornerSize * 0.7, height - 20 - cornerSize)
+  pdf.line(width - 20 - cornerSize * 0.7, height - 20 - cornerSize, width - 20 - cornerSize * 0.7, height - 20 - cornerSize * 0.7)
 
-  // Inner border
-  pdf.setLineWidth(0.5)
-  pdf.setDrawColor(148, 163, 184)
+  // Main border
+  pdf.setLineWidth(2)
+  pdf.setDrawColor(0, 0, 0) // Black
   pdf.rect(15, 15, width - 30, height - 30, "S")
 
-  // Header - SkillVault Logo Text
+  // "CERTIFICATE" title - large, bold, black, serif-like
+  pdf.setFontSize(42)
+  pdf.setFont("helvetica", "bold")
+  pdf.setTextColor(0, 0, 0) // Black
+  pdf.text("CERTIFICATE", width / 2, 50, { align: "center" })
+
+  // "OF COMPLETION" subtitle - smaller, light brown, spaced letters
+  pdf.setFontSize(12)
+  pdf.setFont("helvetica", "normal")
+  pdf.setTextColor(borderColor[0], borderColor[1], borderColor[2]) // Light brown
+  const ofCompletionText = "O F   C O M P L E T I O N"
+  pdf.text(ofCompletionText, width / 2, 58, { align: "center" })
+
+  // "THIS CERTIFICATE IS AWARDED TO :" text
+  pdf.setFontSize(10)
+  pdf.setFont("helvetica", "normal")
+  pdf.setTextColor(0, 0, 0) // Black
+  pdf.text("THIS CERTIFICATE IS AWARDED TO :", width / 2, 80, { align: "center" })
+
+  // Student Name - large, elegant script-like font with underline
   pdf.setFontSize(32)
   pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(59, 130, 246)
-  pdf.text("SkillVault", width / 2, 35, { align: "center" })
-
-  // Subtitle
-  pdf.setFontSize(14)
-  pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(100, 116, 139)
-  pdf.text("Skill Assessment & Certification Platform", width / 2, 45, { align: "center" })
-
-  // Certificate Title
-  pdf.setFontSize(28)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(30, 41, 59)
-  pdf.text("Certificate of Achievement", width / 2, 65, { align: "center" })
-
-  // Divider line
+  pdf.setTextColor(0, 0, 0) // Black
+  const studentNameY = 100
+  pdf.text(certificate.studentName, width / 2, studentNameY, { align: "center" })
+  
+  // Underline for student name (light brown)
+  pdf.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
   pdf.setLineWidth(0.5)
-  pdf.setDrawColor(203, 213, 225)
-  pdf.line(50, 70, width - 50, 70)
-
-  // This certifies that
-  pdf.setFontSize(12)
-  pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(100, 116, 139)
-  pdf.text("This certifies that", width / 2, 80, { align: "center" })
-
-  // Student Name (large, bold)
-  pdf.setFontSize(24)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(30, 41, 59)
-  pdf.text(certificate.studentName, width / 2, 92, { align: "center" })
+  const nameWidth = pdf.getTextWidth(certificate.studentName)
+  pdf.line((width - nameWidth) / 2, studentNameY + 2, (width + nameWidth) / 2, studentNameY + 2)
 
   // Achievement text
-  pdf.setFontSize(12)
-  pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(100, 116, 139)
-  pdf.text("has successfully completed the assessment in", width / 2, 102, { align: "center" })
-
-  // Assessment/Skill Title
-  pdf.setFontSize(18)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(59, 130, 246)
-  pdf.text(certificate.assessmentTitle || certificate.skill, width / 2, 112, { align: "center" })
-
-  // Score
-  pdf.setFontSize(14)
-  pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(34, 197, 94) // Green for score
-  pdf.text(`Score: ${certificate.percentage}%`, width / 2, 122, { align: "center" })
-
-  // College Name with Verified Badge
-  pdf.setFontSize(11)
-  pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(100, 116, 139)
-  pdf.text(`Issued by ${certificate.collegeName}`, width / 2, 132, { align: "center" })
-  
-  // Verified badge (✓ Verified)
-  pdf.setFontSize(9)
-  pdf.setTextColor(34, 197, 94)
-  pdf.text("✓ Verified Institution", width / 2, 138, { align: "center" })
-
-  // Date
-  const formattedDate = new Date(certificate.issuedDate).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
   pdf.setFontSize(10)
-  pdf.setTextColor(100, 116, 139)
-  pdf.text(`Issued on ${formattedDate}`, width / 2, 148, { align: "center" })
+  pdf.setFont("helvetica", "normal")
+  pdf.setTextColor(0, 0, 0) // Black
+  const courseName = certificate.assessmentTitle || certificate.skill
+  const achievementText = `HAS SUCCESSFULLY COMPLETED ${courseName.toUpperCase()} AND EARNED A WITH A SCORE OF ${certificate.percentage}%, DEMONSTRATING PROFICIENCY IN THE EVALUATED SKILLS.`
+  const achievementLines = pdf.splitTextToSize(achievementText, width - 60)
+  let achievementY = 120
+  achievementLines.forEach((line: string) => {
+    pdf.text(line, width / 2, achievementY, { align: "center" })
+    achievementY += 6
+  })
+
+  // Bottom section - QR Code (left), Medal (center), Signature (right)
+  const bottomY = height - 50
+  const leftX = 25
+  const centerX = width / 2
+  const rightX = width - 25
 
   // Generate QR Code
   try {
     const qrDataUrl = await QRCode.toDataURL(certificate.verificationUrl, {
-      width: 150,
+      width: 200,
       margin: 1,
       color: {
-        dark: "#1e293b",
+        dark: "#000000",
         light: "#ffffff",
       },
     })
 
-    // Add QR code to PDF (bottom right)
-    const qrSize = 30
-    pdf.addImage(qrDataUrl, "PNG", width - 50, height - 50, qrSize, qrSize)
+    // QR Code on the left
+    const qrSize = 25
+    pdf.addImage(qrDataUrl, "PNG", leftX, bottomY - qrSize - 8, qrSize, qrSize)
 
-    // QR Code label
+    // Certificate ID below QR code
     pdf.setFontSize(8)
-    pdf.setTextColor(100, 116, 139)
-    pdf.text("Scan to verify", width - 35, height - 16, { align: "center" })
+    pdf.setFont("helvetica", "normal")
+    pdf.setTextColor(0, 0, 0) // Black
+    pdf.text(`CERTIFICATE ID: ${certificate.certificateId}`, leftX, bottomY + 2, { align: "left" })
   } catch (error) {
     console.error("Error generating QR code:", error)
+    // Fallback: just show certificate ID
+    pdf.setFontSize(8)
+    pdf.setFont("helvetica", "normal")
+    pdf.setTextColor(0, 0, 0)
+    pdf.text(`CERTIFICATE ID: ${certificate.certificateId}`, leftX, bottomY, { align: "left" })
   }
 
-  // Certificate ID (bottom left)
-  pdf.setFontSize(9)
+  // Medal/Ribbon icon in center (drawn as a simple medal shape)
+  const medalSize = 18
+  const medalY = bottomY - medalSize / 2
+  
+  // Draw medal shape (circle with ribbon)
+  // Outer circle (gold border)
+  pdf.setDrawColor(218, 165, 32) // Gold border
+  pdf.setLineWidth(1.5)
+  pdf.circle(centerX, medalY, medalSize / 2, "S")
+  
+  // Inner circle (gold fill)
+  pdf.setFillColor(255, 215, 0) // Gold color
+  pdf.circle(centerX, medalY, medalSize / 2 - 1, "F")
+  
+  // Ribbon at bottom
+  pdf.setFillColor(139, 0, 0) // Dark red ribbon
+  pdf.rect(centerX - medalSize / 3, medalY + medalSize / 2 - 3, medalSize * 2 / 3, 5, "F")
+  
+  // Add star or "A" for Award in the medal
+  pdf.setFontSize(12)
   pdf.setFont("helvetica", "bold")
-  pdf.setTextColor(100, 116, 139)
-  pdf.text(`Certificate ID: ${certificate.certificateId}`, 20, height - 20)
+  pdf.setTextColor(0, 0, 0)
+  pdf.text("★", centerX, medalY + 1, { align: "center" })
 
-  // Verification URL (bottom center, small)
+  // Signature area on the right
+  const signatureY = bottomY - 15
+  
+  // Signature line (stylized wavy signature)
+  pdf.setDrawColor(0, 0, 0)
+  pdf.setLineWidth(1)
+  // Draw a stylized signature curve
+  pdf.moveTo(rightX - 25, signatureY - 3)
+  for (let i = 0; i < 25; i++) {
+    const x = rightX - 25 + (i * 1.2)
+    const y = signatureY - 3 + Math.sin(i * 0.4) * 1.5 + Math.cos(i * 0.2) * 0.8
+    pdf.lineTo(x, y)
+  }
+  pdf.stroke()
+  
+  // Underline for signature (light brown)
+  pdf.setDrawColor(borderColor[0], borderColor[1], borderColor[2])
+  pdf.setLineWidth(0.5)
+  pdf.line(rightX - 25, signatureY, rightX + 5, signatureY)
+
+  // "PRINCIPAL" text
+  pdf.setFontSize(8)
+  pdf.setFont("helvetica", "normal")
+  pdf.setTextColor(0, 0, 0)
+  pdf.text("PRINCIPAL", rightX, signatureY + 3, { align: "center" })
+
+  // College name below principal
   pdf.setFontSize(7)
   pdf.setFont("helvetica", "normal")
-  pdf.setTextColor(148, 163, 184)
-  pdf.text(certificate.verificationUrl, width / 2, height - 12, { align: "center" })
-
-  // Authenticity statement
-  pdf.setFontSize(8)
-  pdf.setTextColor(148, 163, 184)
-  pdf.text(
-    "This certificate is digitally verifiable and issued by a verified institution.",
-    width / 2,
-    height - 20,
-    { align: "center" }
-  )
+  pdf.setTextColor(0, 0, 0)
+  const collegeNameLines = pdf.splitTextToSize(certificate.collegeName.toUpperCase(), 30)
+  let collegeY = signatureY + 8
+  collegeNameLines.forEach((line: string) => {
+    pdf.text(line, rightX, collegeY, { align: "center" })
+    collegeY += 4
+  })
 
   return pdf.output("blob")
 }
