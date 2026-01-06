@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,18 +16,27 @@ import {
   Award,
   GraduationCap,
   Calendar,
-  TrendingUp
+  TrendingUp,
+  UserPlus,
+  Loader2
 } from "lucide-react"
-import { verifyCertificate, CertificateRecord } from "@/lib/firebase/recruiter"
+import { verifyCertificate, CertificateRecord, addToShortlist, getStudentCertificates } from "@/lib/firebase/recruiter"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
+import { doc, getDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase/client"
 
 export default function VerifyCertificatePage() {
+  const { user } = useAuth()
+  const router = useRouter()
   const [certificateId, setCertificateId] = useState("")
   const [verifying, setVerifying] = useState(false)
   const [result, setResult] = useState<CertificateRecord | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [addingToShortlist, setAddingToShortlist] = useState(false)
+  const [isShortlisted, setIsShortlisted] = useState(false)
 
   const handleVerify = async () => {
     if (!certificateId.trim()) {
@@ -66,6 +77,56 @@ export default function VerifyCertificatePage() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const handleAddToShortlist = async () => {
+    if (!user?.uid || !result) return
+
+    setAddingToShortlist(true)
+    try {
+      // Get student email from user document
+      const userDoc = await getDoc(doc(db, "users", result.studentId))
+      const userData = userDoc.exists() ? userDoc.data() : null
+      const studentEmail = userData?.email || ""
+
+      // Get all certificates for this student to calculate skills and certificate count
+      const certificates = await getStudentCertificates(result.studentId)
+      const skills = [...new Set(certificates.map(cert => cert.skill))]
+      const avgScore = certificates.length > 0
+        ? Math.round(certificates.reduce((sum, cert) => sum + cert.percentage, 0) / certificates.length)
+        : result.percentage
+
+      // Add to shortlist
+      const shortlistResult = await addToShortlist(
+        {
+          studentId: result.studentId,
+          studentName: result.studentName,
+          studentEmail: studentEmail,
+          collegeName: result.collegeName,
+          skills: skills.length > 0 ? skills : [result.skill],
+          avgScore: avgScore,
+          certificatesCount: certificates.length,
+        },
+        user.uid
+      )
+
+      if (shortlistResult.success) {
+        setIsShortlisted(true)
+        toast.success(`${result.studentName} has been added to your shortlist!`)
+      } else {
+        if (shortlistResult.error?.includes("already shortlisted")) {
+          setIsShortlisted(true)
+          toast.info("This student is already in your shortlist")
+        } else {
+          toast.error(shortlistResult.error || "Failed to add to shortlist")
+        }
+      }
+    } catch (error: any) {
+      console.error("Error adding to shortlist:", error)
+      toast.error("An error occurred while adding to shortlist")
+    } finally {
+      setAddingToShortlist(false)
+    }
   }
 
   return (
@@ -273,24 +334,66 @@ export default function VerifyCertificatePage() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => window.print()}
-                  className="flex-1"
-                >
-                  Print Details
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setResult(null)
-                    setError(null)
-                    setCertificateId("")
-                  }}
-                  className="flex-1"
-                >
-                  Verify Another
-                </Button>
+              <div className="flex flex-col gap-2 pt-4">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.print()}
+                    className="flex-1"
+                  >
+                    Print Details
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setResult(null)
+                      setError(null)
+                      setCertificateId("")
+                      setIsShortlisted(false)
+                    }}
+                    className="flex-1"
+                  >
+                    Verify Another
+                  </Button>
+                </div>
+                
+                {/* Add to Shortlist Button */}
+                {user && !isShortlisted && (
+                  <Button 
+                    onClick={handleAddToShortlist}
+                    disabled={addingToShortlist}
+                    className="w-full"
+                    variant="default"
+                  >
+                    {addingToShortlist ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Adding to Shortlist...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add to Shortlist
+                      </>
+                    )}
+                  </Button>
+                )}
+                
+                {isShortlisted && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertTitle className="text-green-900">Added to Shortlist</AlertTitle>
+                    <AlertDescription className="text-green-800">
+                      This student has been added to your shortlist. 
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-green-800 underline ml-1"
+                        onClick={() => router.push("/dashboard/recruiter/shortlisted")}
+                      >
+                        View Shortlist
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             </CardContent>
           </Card>

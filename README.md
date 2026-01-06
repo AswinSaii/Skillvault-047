@@ -109,8 +109,8 @@ Before you begin, ensure you have the following installed:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/skillvaultplatform.git
-   cd skillvaultplatform
+   git clone https://github.com/AswinSaii/Skillvault-047.git
+   cd Skillvault-047
    ```
 
 2. **Install dependencies**
