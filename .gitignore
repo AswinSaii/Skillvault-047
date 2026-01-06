@@ -3,6 +3,8 @@
 # dependencies
 /node_modules
 /mcp
+/tests
+/testsprite_tests
 
 # next.js
 /.next/
@@ -11,8 +13,6 @@
 
 # production
 /build
-/tests
-/testsprite_tests
 
 # debug
 npm-debug.log*
