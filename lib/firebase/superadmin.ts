@@ -7,6 +7,7 @@ import {
   orderBy,
   Timestamp,
 } from "firebase/firestore";
+import { getVerifiedColleges, getPendingColleges } from "./colleges";
 
 export interface SuperAdminStats {
   totalColleges: number;
@@ -30,24 +31,31 @@ export interface CollegeRequest {
  */
 export async function getSuperAdminStats(): Promise<SuperAdminStats> {
   try {
-    // Get total colleges
-    const collegesQuery = query(collection(db, "users"), where("role", "==", "college-admin"));
-    const collegesSnapshot = await getDocs(collegesQuery);
-    const totalColleges = collegesSnapshot.size;
+    // Get all colleges from colleges collection
+    const allCollegesQuery = query(collection(db, "colleges"));
+    const allCollegesSnapshot = await getDocs(allCollegesQuery);
+    const totalColleges = allCollegesSnapshot.size;
 
-    // Get pending college registration requests
-    // Try collegeRegistrations collection, fallback to checking users with pending status
-    let pendingRequests = 0
+    // Get pending colleges from colleges collection
+    let pendingRequests = 0;
     try {
-      const requestsQuery = query(
-        collection(db, "collegeRegistrations"),
-        where("status", "==", "pending")
-      );
-      const requestsSnapshot = await getDocs(requestsQuery);
-      pendingRequests = requestsSnapshot.size;
+      const pendingResult = await getPendingColleges();
+      if (pendingResult.success) {
+        pendingRequests = pendingResult.colleges.length;
+      }
     } catch (error) {
-      // Collection might not exist, use 0 as default
-      console.log("collegeRegistrations collection not found, using default")
+      console.error("Error fetching pending colleges:", error);
+      // Fallback: try direct query
+      try {
+        const requestsQuery = query(
+          collection(db, "colleges"),
+          where("status", "==", "pending")
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        pendingRequests = requestsSnapshot.size;
+      } catch (fallbackError) {
+        console.error("Fallback query also failed:", fallbackError);
+      }
     }
 
     // Get total users
@@ -65,14 +73,13 @@ export async function getSuperAdminStats(): Promise<SuperAdminStats> {
     const certificatesSnapshot = await getDocs(certificatesQuery);
     const monthlyCertificates = certificatesSnapshot.size;
 
-    // Get new colleges this month
-    const newCollegesQuery = query(
-      collection(db, "users"),
-      where("role", "==", "college-admin"),
-      where("createdAt", ">=", Timestamp.fromDate(startOfMonth))
-    );
-    const newCollegesSnapshot = await getDocs(newCollegesQuery);
-    const newCollegesThisMonth = newCollegesSnapshot.size;
+    // Get new colleges this month from colleges collection
+    // Filter in memory by createdAt to avoid needing composite index
+    const newCollegesThisMonth = allCollegesSnapshot.docs.filter(doc => {
+      const data = doc.data();
+      const createdAt = data.createdAt ? new Date(data.createdAt) : null;
+      return createdAt && createdAt >= startOfMonth;
+    }).length;
 
     // Calculate certificates growth (compare with last month)
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -115,31 +122,49 @@ export async function getSuperAdminStats(): Promise<SuperAdminStats> {
  */
 export async function getPendingCollegeRequests(): Promise<CollegeRequest[]> {
   try {
-    // Try to get from collegeRegistrations collection
-    const requestsQuery = query(
-      collection(db, "collegeRegistrations"),
-      where("status", "==", "pending")
-    );
-    const requestsSnapshot = await getDocs(requestsQuery);
+    // Get pending colleges from colleges collection
+    const pendingResult = await getPendingColleges();
     
-    if (requestsSnapshot.size > 0) {
-      return requestsSnapshot.docs.map((doc) => {
-        const data = doc.data();
+    if (pendingResult.success && pendingResult.colleges.length > 0) {
+      return pendingResult.colleges.map((college) => {
         return {
-          id: doc.id,
-          name: data.collegeName || data.name || "Unknown",
-          location: data.location || data.address || "Unknown",
-          submittedAt: data.submittedAt?.toDate() || data.createdAt?.toDate() || new Date(),
-          status: data.status || "pending",
+          id: college.id,
+          name: college.name,
+          location: college.location,
+          submittedAt: new Date(college.createdAt),
+          status: college.status as "pending" | "reviewing" | "approved" | "rejected",
         };
       });
     }
     
-    // Fallback: return empty array if no requests found
+    // Fallback: try direct query if helper function fails
+    try {
+      const requestsQuery = query(
+        collection(db, "colleges"),
+        where("status", "==", "pending")
+      );
+      const requestsSnapshot = await getDocs(requestsQuery);
+      
+      if (requestsSnapshot.size > 0) {
+        return requestsSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || "Unknown",
+            location: data.location || "Unknown",
+            submittedAt: data.createdAt ? new Date(data.createdAt) : new Date(),
+            status: (data.status || "pending") as "pending" | "reviewing" | "approved" | "rejected",
+          };
+        });
+      }
+    } catch (fallbackError) {
+      console.error("Fallback query failed:", fallbackError);
+    }
+    
+    // Return empty array if no requests found
     return [];
   } catch (error) {
-    // Collection might not exist, return empty array
-    console.log("collegeRegistrations collection not found")
+    console.error("Error fetching pending college requests:", error);
     return [];
   }
 }

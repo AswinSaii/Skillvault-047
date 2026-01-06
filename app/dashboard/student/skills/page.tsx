@@ -4,28 +4,52 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Target,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Award,
-  BookOpen,
-  CheckCircle2,
+import { Input } from "@/components/ui/input"
+import { 
+  BookOpen, 
+  Search, 
+  UserPlus, 
+  Award, 
+  CheckCircle2, 
+  Clock,
+  Loader2,
+  ArrowRight
 } from "lucide-react"
-import { getAttemptsByStudent } from "@/lib/firebase/assessments"
-import { cn } from "@/lib/utils"
+import { 
+  getActiveSkills, 
+  enrollInSkill, 
+  getStudentEnrollments,
+  type Skill,
+  type SkillEnrollment
+} from "@/lib/firebase/skills"
+import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
+import Link from "next/link"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function StudentSkillsPage() {
   const { user } = useAuth()
+  const [skills, setSkills] = useState<Skill[]>([])
+  const [enrollments, setEnrollments] = useState<SkillEnrollment[]>([])
   const [loading, setLoading] = useState(true)
-  const [attempts, setAttempts] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [enrollingId, setEnrollingId] = useState<string | null>(null)
+  const [showEnrollDialog, setShowEnrollDialog] = useState(false)
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null)
 
   useEffect(() => {
-    loadData()
+    if (user?.uid) {
+      loadData()
+    }
   }, [user])
 
   const loadData = async () => {
@@ -33,286 +57,231 @@ export default function StudentSkillsPage() {
 
     setLoading(true)
     try {
-      const attemptsData = await getAttemptsByStudent(user.uid)
-      setAttempts(attemptsData)
+      const [skillsData, enrollmentsData] = await Promise.all([
+        getActiveSkills(),
+        getStudentEnrollments(user.uid),
+      ])
+      setSkills(skillsData)
+      setEnrollments(enrollmentsData)
     } catch (error) {
-      console.error(error)
+      console.error("Error loading data:", error)
+      toast.error("Failed to load skills")
     } finally {
       setLoading(false)
     }
   }
 
-  // Calculate skill stats from attempts
-  const skillStats = attempts.reduce((acc: any, attempt) => {
-    const skill = "General" // Would come from assessment skill
-    if (!acc[skill]) {
-      acc[skill] = {
-        totalAttempts: 0,
-        totalScore: 0,
-        bestScore: 0,
-        recentScores: [],
+  const handleEnroll = async (skill: Skill) => {
+    if (!user?.uid) {
+      toast.error("Please log in to enroll")
+      return
+    }
+
+    setEnrollingId(skill.id)
+    try {
+      const result = await enrollInSkill(user.uid, skill.id, skill.name)
+      if (result.success) {
+        toast.success(`Successfully enrolled in ${skill.name}`)
+        loadData()
+      } else {
+        toast.error(result.error || "Failed to enroll in skill")
       }
+    } catch (error) {
+      console.error("Error enrolling:", error)
+      toast.error("Failed to enroll in skill")
+    } finally {
+      setEnrollingId(null)
     }
-    acc[skill].totalAttempts++
-    acc[skill].totalScore += attempt.percentage
-    acc[skill].bestScore = Math.max(acc[skill].bestScore, attempt.percentage)
-    acc[skill].recentScores.push(attempt.percentage)
-    return acc
-  }, {})
+  }
 
-  const skills = Object.keys(skillStats).map((skill) => {
-    const data = skillStats[skill]
-    const avgScore = data.totalScore / data.totalAttempts
-    const trend =
-      data.recentScores.length > 1
-        ? data.recentScores[data.recentScores.length - 1] - data.recentScores[0]
-        : 0
+  const isEnrolled = (skillId: string) => {
+    return enrollments.some(e => e.skillId === skillId)
+  }
 
-    return {
-      name: skill,
-      progress: avgScore,
-      attempts: data.totalAttempts,
-      bestScore: data.bestScore,
-      trend: trend > 5 ? "up" : trend < -5 ? "down" : "stable",
-    }
-  })
+  const getEnrollmentStatus = (skillId: string) => {
+    const enrollment = enrollments.find(e => e.skillId === skillId)
+    return enrollment?.status || null
+  }
 
-  // Mock data if no attempts
-  const displaySkills =
-    skills.length > 0
-      ? skills
-      : [
-          {
-            name: "React Development",
-            progress: 75,
-            attempts: 0,
-            bestScore: 0,
-            trend: "stable",
-          },
-          {
-            name: "Node.js",
-            progress: 60,
-            attempts: 0,
-            bestScore: 0,
-            trend: "stable",
-          },
-          {
-            name: "Python",
-            progress: 85,
-            attempts: 0,
-            bestScore: 0,
-            trend: "up",
-          },
-          {
-            name: "Data Structures",
-            progress: 45,
-            attempts: 0,
-            bestScore: 0,
-            trend: "down",
-          },
-        ]
+  const filteredSkills = skills.filter(skill =>
+    skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    skill.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    skill.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const enrolledSkills = filteredSkills.filter(skill => isEnrolled(skill.id))
+  const availableSkills = filteredSkills.filter(skill => !isEnrolled(skill.id))
 
   return (
     <DashboardShell
-      heading="My Skills"
-      description="Track your skill progress and identify improvement areas"
+      heading="Skill Courses"
+      description="Enroll in skill courses, take assessments, and earn certifications"
     >
       <div className="space-y-6">
-        {/* Overview Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Skills</CardDescription>
-              <CardTitle className="text-3xl">{displaySkills.length}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Average Proficiency</CardDescription>
-              <CardTitle className="text-3xl">
-                {displaySkills.length > 0
-                  ? Math.round(
-                      displaySkills.reduce((acc, s) => acc + s.progress, 0) /
-                        displaySkills.length
-                    )
-                  : 0}
-                %
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Improving</CardDescription>
-              <CardTitle className="text-3xl text-green-600">
-                {displaySkills.filter((s) => s.trend === "up").length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Need Focus</CardDescription>
-              <CardTitle className="text-3xl text-orange-600">
-                {displaySkills.filter((s) => s.progress < 60).length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search skills..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
 
-        {/* Skill Progress */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Skill Progress</CardTitle>
-            <CardDescription>Your competency levels across different skills</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {displaySkills.map((skill, idx) => (
-              <div key={idx} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{skill.name}</span>
-                    {skill.trend === "up" && (
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                    )}
-                    {skill.trend === "down" && (
-                      <TrendingDown className="h-4 w-4 text-red-600" />
-                    )}
-                    {skill.trend === "stable" && (
-                      <Minus className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {skill.attempts > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {skill.attempts} attempts
-                      </span>
-                    )}
-                    <span className="text-sm font-semibold">{Math.round(skill.progress)}%</span>
-                  </div>
-                </div>
-                <Progress value={skill.progress} className="h-2" />
+        {/* Enrolled Skills */}
+        {enrolledSkills.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">My Enrolled Skills</h2>
+              <Badge variant="secondary">{enrolledSkills.length} Enrolled</Badge>
+            </div>
+            {loading ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map(i => (
+                  <Skeleton key={i} className="h-48" />
+                ))}
               </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Skill Categories */}
-        <Tabs defaultValue="all" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="all">All Skills</TabsTrigger>
-            <TabsTrigger value="strong">Strong</TabsTrigger>
-            <TabsTrigger value="improving">Improving</TabsTrigger>
-            <TabsTrigger value="focus">Need Focus</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="all" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displaySkills.map((skill, idx) => (
-                <SkillCard key={idx} skill={skill} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="strong" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displaySkills
-                .filter((s) => s.progress >= 75)
-                .map((skill, idx) => (
-                  <SkillCard key={idx} skill={skill} />
-                ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="improving" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displaySkills
-                .filter((s) => s.trend === "up")
-                .map((skill, idx) => (
-                  <SkillCard key={idx} skill={skill} />
-                ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="focus" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displaySkills
-                .filter((s) => s.progress < 60)
-                .map((skill, idx) => (
-                  <SkillCard key={idx} skill={skill} />
-                ))}
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Recommendations */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recommended Actions</CardTitle>
-            <CardDescription>Personalized suggestions to improve your skills</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {displaySkills
-              .filter((s) => s.progress < 60)
-              .slice(0, 3)
-              .map((skill, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-accent/5"
-                >
-                  <Target className="h-5 w-5 text-primary mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">Focus on {skill.name}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Current proficiency: {Math.round(skill.progress)}%. Take more assessments to
-                      improve your score.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            {displaySkills.filter((s) => s.progress < 60).length === 0 && (
-              <div className="text-center py-6 text-muted-foreground">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Great work! All skills are performing well.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {enrolledSkills.map((skill) => {
+                  const enrollment = enrollments.find(e => e.skillId === skill.id)
+                  const status = enrollment?.status || "enrolled"
+                  
+                  return (
+                    <Card key={skill.id} className="relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-accent/10 rounded-bl-full" />
+                      <CardHeader className="relative">
+                        <div className="flex items-start justify-between">
+                          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xl">
+                            {skill.name[0]}
+                          </div>
+                          {status === "certified" && (
+                            <Badge className="bg-green-500">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Certified
+                            </Badge>
+                          )}
+                          {status === "completed" && (
+                            <Badge variant="secondary">
+                              Completed
+                            </Badge>
+                          )}
+                          {status === "enrolled" && (
+                            <Badge variant="outline">
+                              Enrolled
+                            </Badge>
+                          )}
+                        </div>
+                        <CardTitle className="text-lg mt-4">{skill.name}</CardTitle>
+                        <CardDescription>
+                          {skill.description || "No description available"}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{skill.category}</Badge>
+                          {enrollment?.certificateId && (
+                            <Badge variant="secondary" className="text-xs">
+                              Cert: {enrollment.certificateId}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {status === "enrolled" && (
+                            <Button 
+                              className="flex-1" 
+                              asChild
+                            >
+                              <Link href={`/dashboard/student/skills/${skill.id}/assessment`}>
+                                Take Assessment
+                                <ArrowRight className="h-4 w-4 ml-2" />
+                              </Link>
+                            </Button>
+                          )}
+                          {status === "certified" && (
+                            <Button 
+                              variant="outline" 
+                              className="flex-1"
+                              asChild
+                            >
+                              <Link href="/dashboard/student/certificates">
+                                View Certificate
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardShell>
-  )
-}
-
-function SkillCard({ skill }: { skill: any }) {
-  const getColorClass = (progress: number) => {
-    if (progress >= 75) return "text-green-600 bg-green-50 border-green-200"
-    if (progress >= 50) return "text-yellow-600 bg-yellow-50 border-yellow-200"
-    return "text-red-600 bg-red-50 border-red-200"
-  }
-
-  return (
-    <Card className={cn("border-2", getColorClass(skill.progress))}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <BookOpen className="h-6 w-6" />
-          {skill.trend === "up" && <TrendingUp className="h-5 w-5 text-green-600" />}
-          {skill.trend === "down" && <TrendingDown className="h-5 w-5 text-red-600" />}
-        </div>
-        <CardTitle className="text-lg mt-2">{skill.name}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Proficiency</span>
-            <span className="font-semibold">{Math.round(skill.progress)}%</span>
-          </div>
-          <Progress value={skill.progress} className="h-2" />
-        </div>
-        {skill.attempts > 0 && (
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{skill.attempts} attempts</span>
-            <span>Best: {skill.bestScore}%</span>
           </div>
         )}
-      </CardContent>
-    </Card>
+
+        {/* Available Skills */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Available Skills</h2>
+            <Badge variant="secondary">{availableSkills.length} Available</Badge>
+          </div>
+          {loading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <Skeleton key={i} className="h-48" />
+              ))}
+            </div>
+          ) : availableSkills.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <BookOpen className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">No skills available</h3>
+                <p className="text-muted-foreground">
+                  {searchQuery ? "No skills match your search" : "All skills have been enrolled or no skills are available"}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {availableSkills.map((skill) => (
+                <Card key={skill.id} className="relative overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-accent/10 rounded-bl-full" />
+                  <CardHeader className="relative">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xl">
+                      {skill.name[0]}
+                    </div>
+                    <CardTitle className="text-lg mt-4">{skill.name}</CardTitle>
+                    <CardDescription>
+                      {skill.description || "No description available"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Badge variant="outline">{skill.category}</Badge>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => handleEnroll(skill)}
+                      disabled={enrollingId === skill.id}
+                    >
+                      {enrollingId === skill.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Enrolling...
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Enroll Now
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </DashboardShell>
   )
 }

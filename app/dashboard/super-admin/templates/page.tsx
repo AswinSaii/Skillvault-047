@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { FileText, Eye, Edit3, Trash2, Upload, Plus, Image as ImageIcon } from "lucide-react"
+import { FileText, Eye, Edit3, Trash2, Upload, Plus, Image as ImageIcon, Download, Loader2 } from "lucide-react"
 import { 
   getAllTemplates,
   createTemplate,
@@ -45,6 +45,8 @@ import {
   CertificateTemplate
 } from "@/lib/firebase/templates"
 import { useToast } from "@/hooks/use-toast"
+import { generateCertificatePDF } from "@/lib/utils/certificate-pdf"
+import type { Certificate } from "@/lib/firebase/certificates"
 
 export default function TemplatesManagement() {
   const { user } = useAuth()
@@ -55,8 +57,11 @@ export default function TemplatesManagement() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showCertificatePreview, setShowCertificatePreview] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<CertificateTemplate | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [generatingPreview, setGeneratingPreview] = useState(false)
+  const [certificatePreviewUrl, setCertificatePreviewUrl] = useState<string | null>(null)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -91,6 +96,59 @@ export default function TemplatesManagement() {
         return
       }
       setFormData(prev => ({ ...prev, imageFile: file }))
+    }
+  }
+
+  const handlePreviewCertificate = async () => {
+    setGeneratingPreview(true)
+    try {
+      // Create a sample certificate for preview
+      const sampleCertificate: Certificate = {
+        id: "preview-cert",
+        studentId: "sample-student",
+        studentName: "John Doe",
+        studentEmail: "john.doe@example.com",
+        collegeId: "sample-college",
+        collegeName: "Sample College of Engineering",
+        assessmentId: "sample-assessment",
+        assessmentTitle: "JavaScript Advanced",
+        skill: "JavaScript",
+        score: 92,
+        percentage: 92,
+        passingGrade: 70,
+        attemptId: "sample-attempt",
+        certificateId: "CERT-PREVIEW-12345",
+        issuedDate: new Date(),
+        verificationUrl: `${window.location.origin}/verify/CERT-PREVIEW-12345`,
+        status: "active",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      const blob = await generateCertificatePDF(sampleCertificate)
+      const url = URL.createObjectURL(blob)
+      setCertificatePreviewUrl(url)
+      setShowCertificatePreview(true)
+    } catch (error) {
+      console.error("Error generating certificate preview:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate certificate preview",
+        variant: "destructive"
+      })
+    } finally {
+      setGeneratingPreview(false)
+    }
+  }
+
+  const handleDownloadPreview = () => {
+    if (certificatePreviewUrl) {
+      const link = document.createElement("a")
+      link.href = certificatePreviewUrl
+      link.download = "Certificate_Preview.pdf"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -211,10 +269,29 @@ export default function TemplatesManagement() {
               <Badge variant="secondary">{templates.filter(t => t.isActive).length} Active</Badge>
             </div>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create Template
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handlePreviewCertificate}
+              disabled={generatingPreview}
+            >
+              {generatingPreview ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview Certificate
+                </>
+              )}
+            </Button>
+            <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Create Template
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -462,6 +539,56 @@ export default function TemplatesManagement() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Certificate Preview Dialog */}
+      <Dialog open={showCertificatePreview} onOpenChange={(open) => {
+        setShowCertificatePreview(open)
+        if (!open && certificatePreviewUrl) {
+          URL.revokeObjectURL(certificatePreviewUrl)
+          setCertificatePreviewUrl(null)
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Certificate Preview</DialogTitle>
+            <DialogDescription>
+              This is how the generated certificate will look with sample data
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {certificatePreviewUrl ? (
+              <div className="border rounded-lg overflow-hidden">
+                <iframe
+                  src={certificatePreviewUrl}
+                  className="w-full h-[600px] border-0"
+                  title="Certificate Preview"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[600px] border rounded-lg">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setShowCertificatePreview(false)
+                if (certificatePreviewUrl) {
+                  URL.revokeObjectURL(certificatePreviewUrl)
+                  setCertificatePreviewUrl(null)
+                }
+              }}>
+                Close
+              </Button>
+              {certificatePreviewUrl && (
+                <Button onClick={handleDownloadPreview}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Preview
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

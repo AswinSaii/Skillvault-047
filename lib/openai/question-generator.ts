@@ -35,19 +35,23 @@ export async function generateAssessmentQuestions(
     const { skill, assessmentTitle, difficulty, questionType, numberOfQuestions, topics } = params
 
     // Build the prompt based on question type
-    let prompt = `You are an expert assessment creator. Generate ${numberOfQuestions} ${difficulty} level questions for a "${assessmentTitle}" assessment focused on ${skill}.`
+    let prompt = `You are an expert assessment creator. Generate ${numberOfQuestions} ${difficulty} level MULTIPLE CHOICE (MCQ) questions for a "${assessmentTitle}" assessment focused on ${skill}.`
 
     if (topics && topics.length > 0) {
       prompt += `\n\nSpecific topics to cover: ${topics.join(', ')}`
     }
 
+    // Force MCQ type for skill assessments
     if (questionType === 'mcq' || questionType === 'mixed') {
-      prompt += `\n\nFor MCQ questions:
-- Provide 4 options (A, B, C, D)
+      prompt += `\n\nIMPORTANT: Generate ONLY Multiple Choice Questions (MCQ). Do NOT generate coding questions or practical questions.
+      
+For each MCQ question:
+- Provide exactly 4 options (A, B, C, D)
 - Only ONE option should be correct
 - Include an explanation for the correct answer
 - Questions should test understanding, not just memorization
-- Avoid obvious or trivial questions`
+- Avoid obvious or trivial questions
+- Make questions relevant to ${skill}`
     }
 
     if (questionType === 'coding' || questionType === 'mixed') {
@@ -66,31 +70,29 @@ export async function generateAssessmentQuestions(
 - Questions should require applying concepts to real-world situations`
     }
 
-    prompt += `\n\nRespond with a JSON array of questions in this exact format:
-[
-  {
-    "question": "Question text here",
-    "type": "mcq" | "coding" | "practical",
-    "options": ["Option A", "Option B", "Option C", "Option D"], // Only for MCQ
-    "correctAnswer": 0 | "Expected output text", // Index for MCQ, text for coding/practical
-    "explanation": "Why this is the correct answer",
-    "difficulty": "${difficulty}",
-    "points": 10 | 20 | 30, // Based on difficulty: easy=10, medium=20, hard=30
-    "testCases": [ // Only for coding questions
-      {
-        "input": "Sample input",
-        "expectedOutput": "Expected output"
-      }
-    ]
-  }
-]
+    prompt += `\n\nRespond with a JSON object containing a "questions" array in this exact format:
+{
+  "questions": [
+    {
+      "question": "Question text here",
+      "type": "mcq",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0, // Must be a number 0-3 representing the index of the correct option
+      "explanation": "Why this is the correct answer",
+      "difficulty": "${difficulty}",
+      "points": 10 | 20 | 30 // Based on difficulty: easy=10, medium=20, hard=30
+    }
+  ]
+}
 
 IMPORTANT:
-1. Return ONLY valid JSON, no markdown formatting or code blocks
-2. Ensure all questions are relevant to ${skill}
-3. Match the difficulty level: ${difficulty}
-4. Generate exactly ${numberOfQuestions} questions
-5. For mixed type, include a variety of MCQ and coding questions`
+1. Return ONLY valid JSON object with a "questions" array, no markdown formatting or code blocks
+2. ALL questions MUST be type "mcq" (Multiple Choice Questions) - DO NOT generate coding or practical questions
+3. Ensure all questions are relevant to ${skill}
+4. Match the difficulty level: ${difficulty}
+5. Generate exactly ${numberOfQuestions} MCQ questions
+6. For each question, correctAnswer must be a number (0, 1, 2, or 3) representing the index of the correct option
+7. Each question must have exactly 4 options`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini', // Using GPT-4 mini for cost efficiency

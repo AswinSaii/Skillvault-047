@@ -334,7 +334,15 @@ export async function updateAttempt(
   try {
     const docRef = doc(db, ATTEMPTS_COLLECTION, attemptId);
     
-    const updateData: any = { ...updates };
+    // Filter out undefined values to avoid Firebase errors
+    const updateData: any = {};
+    Object.keys(updates).forEach(key => {
+      const value = (updates as any)[key];
+      if (value !== undefined && value !== null) {
+        updateData[key] = value;
+      }
+    });
+    
     if (updates.submittedAt) {
       updateData.submittedAt = Timestamp.fromDate(updates.submittedAt);
     }
