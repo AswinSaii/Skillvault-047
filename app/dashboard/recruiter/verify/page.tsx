@@ -20,7 +20,7 @@ import {
   UserPlus,
   Loader2
 } from "lucide-react"
-import { verifyCertificate, CertificateRecord, addToShortlist, getStudentCertificates } from "@/lib/firebase/recruiter"
+import { verifyCertificate, CertificateRecord, addToShortlist, getStudentCertificates, getShortlistedCandidates } from "@/lib/firebase/recruiter"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { Label } from "@/components/ui/label"
@@ -54,14 +54,23 @@ export default function VerifyCertificatePage() {
       if (certificate) {
         setResult(certificate)
         setError(null)
+        
+        // Check if student is already shortlisted
+        if (user?.uid) {
+          const shortlisted = await getShortlistedCandidates(user.uid)
+          const alreadyShortlisted = shortlisted.some(c => c.studentId === certificate.studentId)
+          setIsShortlisted(alreadyShortlisted)
+        }
       } else {
         setError(`Certificate ID "${certificateId.toUpperCase().trim()}" is invalid or not found in the database. Please check the ID and try again.`)
         setResult(null)
+        setIsShortlisted(false)
       }
     } catch (err) {
       console.error("Verification error:", err)
       setError("An error occurred while verifying the certificate. Please try again.")
       setResult(null)
+      setIsShortlisted(false)
     } finally {
       setVerifying(false)
     }
